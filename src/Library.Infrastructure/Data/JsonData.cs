@@ -28,7 +28,7 @@ public class JsonData
         _loansPath = section["Loans"] ?? Path.Combine("Json", "Loans.json");
     }
 
-     public Book? SearchBookByTitle(string title)
+    public Book? SearchBookByTitle(string title)
     {
         return Books?.FirstOrDefault(b => b.Title.Equals(title, StringComparison.OrdinalIgnoreCase));
     }
@@ -213,5 +213,5 @@ public class JsonData
             return await JsonSerializer.DeserializeAsync<T>(jsonStream);
         }
     }
-
+   
 }
