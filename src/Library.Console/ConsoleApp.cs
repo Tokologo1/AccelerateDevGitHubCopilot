@@ -17,12 +17,15 @@ public class ConsoleApp
     ILoanService _loanService;
     IPatronService _patronService;
 
-    public ConsoleApp(ILoanService loanService, IPatronService patronService, IPatronRepository patronRepository, ILoanRepository loanRepository)
+    private readonly JsonData _jsonData;
+
+    public ConsoleApp(ILoanService loanService, IPatronService patronService, IPatronRepository patronRepository, ILoanRepository loanRepository, JsonData jsonData)
     {
         _patronRepository = patronRepository;
         _loanRepository = loanRepository;
         _loanService = loanService;
         _patronService = patronService;
+        _jsonData = jsonData;
     }
 
     public async Task Run()
@@ -94,7 +97,7 @@ public class ConsoleApp
 
     async Task<ConsoleState> PatronSearchResults()
     {
-        CommonActions options = CommonActions.Select | CommonActions.SearchPatrons | CommonActions.Quit;
+        CommonActions options = CommonActions.Select | CommonActions.SearchPatrons | CommonActions.Quit | CommonActions.SearchBooks;
         CommonActions action = ReadInputOptions(options, out int selectedPatronNumber);
         if (action == CommonActions.Select)
         {
@@ -118,8 +121,54 @@ public class ConsoleApp
         {
             return ConsoleState.PatronSearch;
         }
+        else if (action == CommonActions.SearchBooks)
+        {
+            await SearchBooks();
+            return ConsoleState.PatronSearchResults;
+        }
 
         throw new InvalidOperationException("An input option is not handled.");
+    }
+
+    async Task<ConsoleState> SearchBooks()
+    {
+        string bookTitle = ReadBookTitle();
+
+        Book? book = _jsonData.SearchBookByTitle(bookTitle);
+
+        if (book == null)
+        {
+            Console.WriteLine($"No book found with title: {bookTitle}");
+            return ConsoleState.PatronDetails;
+        }
+
+        // Find all BookItems for this book
+        var bookItems = _jsonData.BookItems?.Where(bi => bi.BookId == book.Id).ToList();
+
+        if (bookItems == null || bookItems.Count == 0)
+        {
+            Console.WriteLine($"No copies of {book.Title} found in the library.");
+            return ConsoleState.PatronDetails;
+        }
+
+        // Check if any BookItem is available (not on loan)
+        bool available = bookItems.Any(item =>
+            !_jsonData.Loans!.Any(l => l.BookItemId == item.Id && l.ReturnDate == null));
+
+        if (available)
+        {
+            Console.WriteLine($"{book.Title} is available for loan.");
+        }
+        else
+        {
+            // Find the first loaned copy and show its due date
+            var loan = _jsonData.Loans!
+                .FirstOrDefault(l => bookItems.Any(bi => bi.Id == l.BookItemId) && l.ReturnDate == null);
+
+            Console.WriteLine($"{book.Title} is on loan to another patron. The return due date is {loan?.DueDate}.");
+        }
+
+        return ConsoleState.PatronDetails;
     }
 
     static CommonActions ReadInputOptions(CommonActions options, out int optionNumber)
@@ -136,6 +185,7 @@ public class ConsoleApp
             {
                 "q" when options.HasFlag(CommonActions.Quit) => CommonActions.Quit,
                 "s" when options.HasFlag(CommonActions.SearchPatrons) => CommonActions.SearchPatrons,
+                "b" when options.HasFlag(CommonActions.SearchBooks) => CommonActions.SearchBooks,
                 "m" when options.HasFlag(CommonActions.RenewPatronMembership) => CommonActions.RenewPatronMembership,
                 "e" when options.HasFlag(CommonActions.ExtendLoanedBook) => CommonActions.ExtendLoanedBook,
                 "r" when options.HasFlag(CommonActions.ReturnLoanedBook) => CommonActions.ReturnLoanedBook,
@@ -169,6 +219,10 @@ public class ConsoleApp
         if (options.HasFlag(CommonActions.SearchPatrons))
         {
             Console.WriteLine(" - \"s\" for new search");
+        }
+        if (options.HasFlag(CommonActions.SearchBooks))
+        {
+            Console.WriteLine(" - \"b\" to check for book availability");
         }
         if (options.HasFlag(CommonActions.Quit))
         {
