@@ -255,7 +255,7 @@ public class ConsoleApp
         } while (action == CommonActions.Repeat);
         return action;
     }
-
+//Testing
     static void WriteInputOptions(CommonActions options)
     {
         Console.WriteLine("Input Options:");
